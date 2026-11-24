@@ -1,0 +1,222 @@
+# FinShield Configuration
+# All settings for the 6-layer fraud detection system
+
+app:
+  name: "FinShield"
+  version: "1.0.0"
+  environment: "development"  # development, staging, production
+  debug: true
+
+# Layer 1: Data Ingestion
+ingestion:
+  api:
+    host: "0.0.0.0"
+    port: 8000
+    workers: 4
+
+  duckdb:
+    path: "data/finshield.duckdb"
+    memory_limit: "4GB"
+    threads: 4
+
+  kafka:
+    bootstrap_servers: "localhost:9092"
+    topics:
+      transactions: "finshield.transactions"
+      fms_alerts: "finshield.fms_alerts"
+      tms_alerts: "finshield.tms_alerts"
+      govt_feeds: "finshield.govt_feeds"
+    consumer_group: "finshield-processor"
+    auto_offset_reset: "latest"
+
+  synthetic_data:
+    num_accounts: 1000
+    num_transactions: 50000
+    fraud_ratio: 0.15
+    seed: 42
+
+# Layer 2: AI/ML Detection
+detection:
+  pyod:
+    models:
+      - name: "IsolationForest"
+        params:
+          contamination: 0.1
+          n_estimators: 100
+          random_state: 42
+      - name: "ECOD"
+        params:
+          contamination: 0.1
+      - name: "LODA"
+        params:
+          contamination: 0.1
+          n_bins: 10
+          n_random_cuts: 100
+    ensemble_weights: [0.4, 0.3, 0.3]
+
+  tsfresh:
+    n_jobs: 4
+    chunksize: 100
+    disable_progressbar: true
+    minimal_features: false
+
+  xgboost:
+    n_estimators: 200
+    max_depth: 6
+    learning_rate: 0.1
+    subsample: 0.8
+    colsample_bytree: 0.8
+    random_state: 42
+    eval_metric: "mlogloss"
+    early_stopping_rounds: 20
+
+  smote:
+    k_neighbors: 5
+    random_state: 42
+
+  shap:
+    sample_size: 1000
+    max_display: 10
+
+  baseline:
+    window_days: 90
+    update_frequency_hours: 24
+
+  redis:
+    host: "localhost"
+    port: 6379
+    db: 0
+    profile_ttl_days: 100
+
+# Layer 3: Graph Intelligence
+graph:
+  networkx:
+    min_cycle_length: 3
+    max_cycle_length: 10
+
+  kingpin:
+    min_in_degree: 5
+    centrality_threshold: 0.1
+
+  shared_entity:
+    min_shared_connections: 2
+    entity_types: ["device_id", "ip_address", "phone_number"]
+
+  visualization:
+    pyvis:
+      height: "700px"
+      width: "100%"
+      bgcolor: "#1a1a2e"
+      font_color: "#ffffff"
+
+# Layer 4: Risk Engine & Regulatory
+risk:
+  weights:
+    ml_score: 0.4
+    graph_score: 0.35
+    regulatory_score: 0.25
+
+  thresholds:
+    watch: 30      # 0-30: Monitor
+    alert: 60      # 30-60: Human review
+    act: 85        # 60-85: Enhanced monitoring, 85+: Auto-freeze
+
+  regulatory:
+    feeds:
+      - name: "RBI_FRAUD_ADVISORY"
+        url: "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx"
+        schedule: "0 */6 * * *"  # Every 6 hours
+      - name: "FIU_IND_WATCHLIST"
+        url: "https://fiuindia.gov.in/"
+        schedule: "0 */6 * * *"
+      - name: "NPCI_UPI_BLACKLIST"
+        url: "https://www.npci.org.in/"
+        schedule: "0 */12 * * *"
+      - name: "MHA_CYBERCRIME"
+        url: "https://cybercrime.gov.in/"
+        schedule: "0 */12 * * *"
+    local_cache_path: "data/watchlists"
+    watchlist_match_boost: 50  # Points added to risk score
+
+# Layer 5: Autonomous AI Agent
+agent:
+  ollama:
+    host: "http://localhost:11434"
+    model: "llama3:8b"
+    timeout: 120
+
+  langgraph:
+    max_steps: 10
+    recursion_limit: 25
+
+  rag:
+    chromadb_path: "data/chromadb"
+    collection_name: "banking_regulations"
+    embedding_model: "all-MiniLM-L6-v2"
+    chunk_size: 512
+    chunk_overlap: 50
+    top_k: 5
+
+  sar:
+    template_path: "regulations/sar_template.txt"
+    auto_submit: false  # Requires human review
+
+  core_banking:
+    api_url: "http://localhost:8080/cbs"
+    api_key: "${CBS_API_KEY}"
+    freeze_endpoint: "/accounts/freeze"
+    unfreeze_endpoint: "/accounts/unfreeze"
+
+# Layer 6: Interface
+interface:
+  streamlit:
+    host: "0.0.0.0"
+    port: 8501
+    theme:
+      primaryColor: "#00d4aa"
+      backgroundColor: "#0e1117"
+      secondaryBackgroundColor: "#1a1a2e"
+      textColor: "#fafafa"
+    refresh_interval_seconds: 5
+
+  dashboard:
+    max_risk_accounts: 50
+    graph_max_nodes: 100
+    velocity_window_seconds: 60
+
+# Case Management
+case_management:
+  tiers:
+    - name: "WATCH"
+      risk_min: 0
+      risk_max: 30
+      action: "monitor"
+      sla_hours: 72
+    - name: "ALERT"
+      risk_min: 31
+      risk_max: 60
+      action: "analyst_review"
+      sla_hours: 24
+    - name: "ACT"
+      risk_min: 61
+      risk_max: 84
+      action: "enhanced_monitoring"
+      sla_hours: 4
+    - name: "CRITICAL"
+      risk_min: 85
+      risk_max: 100
+      action: "auto_freeze_and_sar"
+      sla_hours: 1
+
+  feedback_loop:
+    retrain_schedule: "0 2 * * *"  # Daily at 2 AM
+    min_samples_for_retrain: 100
+    performance_threshold: 0.85
+
+# Security & Compliance
+security:
+  air_gapped: true
+  data_encryption: true
+  audit_logging: true
+  pii_masking: true
+  offline_mode: true
