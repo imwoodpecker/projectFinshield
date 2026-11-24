@@ -16,8 +16,8 @@ env/
 .venv/
 
 # Data files (large, generated)
-data/duckdb/*.duckdb
-data/duckdb/*.wal
+data/*.duckdb
+data/*.wal
 data/chromadb/
 data/ollama/
 
